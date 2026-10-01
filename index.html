@@ -34,9 +34,17 @@
             <div>
                 <h2 class="font-bold text-lg mb-6 text-indigo-600 dark:text-indigo-400">Camp Support</h2>
                 <nav class="space-y-2">
-                    <button onclick="switchTab('chat')" class="w-full text-left px-4 py-2 rounded-lg hover:bg-indigo-50 dark:hover:bg-slate-800 hover:text-indigo-600 font-medium transition">💬 แชทส่วนตัวกับพี่</button>
-                    <button onclick="switchTab('sos')" class="w-full text-left px-4 py-2 rounded-lg hover:bg-indigo-50 dark:hover:bg-slate-800 hover:text-indigo-600 font-medium transition">🚨 กดเรียกพี่ (SOS)</button>
-                    <button onclick="switchTab('announcement')" class="w-full text-left px-4 py-2 rounded-lg hover:bg-indigo-50 dark:hover:bg-slate-800 hover:text-indigo-600 font-medium transition">📢 ประกาศจากค่าย</button>
+                    <button onclick="switchTab('chat')" class="w-full text-left px-4 py-2 rounded-lg hover:bg-indigo-50 dark:hover:bg-slate-800 hover:text-indigo-600 font-medium transition flex justify-between items-center">
+                        <span>💬 แชทส่วนตัวกับพี่</span>
+                        <span id="badge-chat" class="hidden w-2.5 h-2.5 bg-red-500 rounded-full"></span>
+                    </button>
+                    <button onclick="switchTab('sos')" class="w-full text-left px-4 py-2 rounded-lg hover:bg-indigo-50 dark:hover:bg-slate-800 hover:text-indigo-600 font-medium transition">
+                        <span>🚨 กดเรียกพี่ (SOS)</span>
+                    </button>
+                    <button onclick="switchTab('announcement')" class="w-full text-left px-4 py-2 rounded-lg hover:bg-indigo-50 dark:hover:bg-slate-800 hover:text-indigo-600 font-medium transition flex justify-between items-center">
+                        <span>📢 ประกาศจากค่าย</span>
+                        <span id="badge-ann" class="hidden w-2.5 h-2.5 bg-red-500 rounded-full"></span>
+                    </button>
                 </nav>
             </div>
             <div class="space-y-2">
@@ -90,6 +98,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=4"></script>
+    <script src="app.js?v=5"></script>
 </body>
 </html>
