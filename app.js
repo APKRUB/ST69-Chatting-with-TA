@@ -6,7 +6,32 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let currentUser = null;
 let myTable = localStorage.getItem('my_table') || '';
 
+// ระบบจัดการธีมมืด/สว่าง
+function initTheme() {
+    const theme = localStorage.getItem('theme') || 'light';
+    if (theme === 'dark') {
+        document.documentElement.classList.add('dark');
+        document.getElementById('theme-label').innerText = 'โหมดสว่าง';
+    } else {
+        document.documentElement.classList.remove('dark');
+        document.getElementById('theme-label').innerText = 'โหมดมืด';
+    }
+}
+
+function toggleTheme() {
+    if (document.documentElement.classList.contains('dark')) {
+        document.documentElement.classList.remove('dark');
+        localStorage.setItem('theme', 'light');
+        document.getElementById('theme-label').innerText = 'โหมดมืด';
+    } else {
+        document.documentElement.classList.add('dark');
+        localStorage.setItem('theme', 'dark');
+        document.getElementById('theme-label').innerText = 'โหมดสว่าง';
+    }
+}
+
 async function checkUser() {
+    initTheme();
     const { data: { session } } = await sb.auth.getSession();
     if (session) {
         currentUser = session.user;
@@ -69,9 +94,9 @@ async function loadMessages() {
     
     const container = document.getElementById('chat-messages');
     container.innerHTML = data.map(msg => `
-        <div class="p-3 bg-white rounded-xl shadow-sm max-w-md border border-slate-100 ${msg.sender_id === currentUser.id ? 'ml-auto bg-indigo-50/50' : ''}">
+        <div class="p-3 bg-white dark:bg-slate-900 rounded-xl shadow-sm max-w-md border border-slate-100 dark:border-slate-800 ${msg.sender_id === currentUser.id ? 'ml-auto bg-indigo-50/50 dark:bg-indigo-950/40' : ''}">
             <p class="text-xs text-slate-400 mb-1">${msg.sender_id === currentUser.id ? 'คุณ' : 'พี่เลี้ยง'}</p>
-            <p class="text-sm text-slate-700">${msg.content}</p>
+            <p class="text-sm text-slate-700 dark:text-slate-200">${msg.content}</p>
         </div>
     `).join('');
     container.scrollTop = container.scrollHeight;
@@ -93,11 +118,7 @@ async function sendMessage() {
         content: content
     }]);
 
-    if (!error) {
-        input.value = '';
-    } else {
-        alert('ส่งไม่สำเร็จ: ' + error.message);
-    }
+    if (!error) input.value = '';
 }
 
 async function sendSOS() {
@@ -136,9 +157,9 @@ async function loadAnnouncements() {
     }
 
     container.innerHTML = data.map(ann => `
-        <div class="p-4 bg-white rounded-xl shadow-sm border border-slate-100 border-l-4 border-indigo-600">
-            <h3 class="font-bold text-slate-800">${ann.title}</h3>
-            <p class="text-sm text-slate-600 mt-1">${ann.content}</p>
+        <div class="p-4 bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 border-l-4 border-indigo-600">
+            <h3 class="font-bold text-slate-800 dark:text-slate-100">${ann.title}</h3>
+            <p class="text-sm text-slate-600 dark:text-slate-400 mt-1">${ann.content}</p>
         </div>
     `).join('');
 }
