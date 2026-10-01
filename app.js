@@ -106,6 +106,7 @@ async function loadMessages() {
     container.scrollTop = container.scrollHeight;
 }
 
+// ป้องกัน Error 400 ด้วยโครงสร้าง Object ที่ปลอดภัย
 async function sendMessage() {
     if (!myTable) {
         alert('กรุณาระบุเลขที่โต๊ะก่อนส่งข้อความครับ');
@@ -115,14 +116,20 @@ async function sendMessage() {
     const content = input.value.trim();
     if (!content) return;
 
-    const { error } = await sb.from('messages').insert([{
+    const { error } = await sb.from('messages').insert({
         sender_id: currentUser.id,
         sender_email: currentUser.email,
         table_no: myTable,
         content: content
-    }]);
+    });
 
-    if (!error) input.value = '';
+    if (!error) {
+        input.value = '';
+        loadMessages();
+    } else {
+        alert('ส่งไม่สำเร็จ: ' + error.message);
+        console.error("Supabase Error:", error);
+    }
 }
 
 async function sendSOS() {
@@ -133,18 +140,20 @@ async function sendSOS() {
         return;
     }
 
-    const { error } = await sb.from('sos_requests').insert([{
+    const { error } = await sb.from('sos_requests').insert({
         student_id: currentUser.id,
         student_email: currentUser.email,
         table_no: tableNo,
         topic: topic,
         status: 'pending'
-    }]);
+    });
 
     if (!error) {
         alert('🚨 ส่งสัญญาณเรียกพี่สำเร็จ!');
         document.getElementById('sos-topic').value = '';
         switchTab('chat');
+    } else {
+        alert('ส่ง SOS ไม่สำเร็จ: ' + error.message);
     }
 }
 
@@ -175,7 +184,7 @@ function setupRealtime() {
         .subscribe();
 }
 
-// ผูกฟังก์ชันเข้ากับ window เพื่อให้ HTML เรียกใช้งานได้ชัวร์ๆ
+// ผูกฟังก์ชันเข้ากับ window เพื่อให้ปุ่มใน HTML เรียกใช้ได้สมบูรณ์
 window.toggleTheme = toggleTheme;
 window.switchTab = switchTab;
 window.changeMyTable = changeMyTable;
