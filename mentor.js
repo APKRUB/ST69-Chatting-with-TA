@@ -3,6 +3,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let currentUser = null;
+let activeTable = null;
 
 async function checkUser() {
     const { data: { session } } = await sb.auth.getSession();
@@ -13,6 +14,7 @@ async function checkUser() {
         document.getElementById('user-info').innerText = `👤 ${currentUser.email}`;
         
         loadSOS();
+        loadTableList();
         setupRealtime();
     } else {
         document.getElementById('auth-container').classList.remove('hidden');
@@ -26,9 +28,7 @@ window.addEventListener('DOMContentLoaded', () => {
         loginBtn.addEventListener('click', async () => {
             await sb.auth.signInWithOAuth({
                 provider: 'google',
-                options: { 
-                    redirectTo: 'https://apkrub.github.io/ST69-Chatting-with-TA/mentor.html' 
-                }
+                options: { redirectTo: 'https://apkrub.github.io/ST69-Chatting-with-TA/mentor.html' }
             });
         });
     }
@@ -42,9 +42,9 @@ document.getElementById('logout-btn').addEventListener('click', async () => {
 function switchTab(tabName) {
     document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
     document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+    if (tabName === 'chat-rooms') loadTableList();
 }
 
-// โหลดและจัดการ SOS
 async function loadSOS() {
     const { data, error } = await sb.from('sos_requests').select('*').order('created_at', { ascending: false });
     if (error) return;
@@ -53,7 +53,7 @@ async function loadSOS() {
     if (!container) return;
 
     if (data.length === 0) {
-        container.innerHTML = `<p class="text-sm text-slate-400">ยังไม่มีเคสเรียกความช่วยเหลือในขณะนี้</p>`;
+        container.innerHTML = `<p class="text-sm text-slate-400">ยังไม่มีเคสเรียกความช่วยเหลือ</p>`;
         return;
     }
 
@@ -75,7 +75,7 @@ async function loadSOS() {
                 </span>
                 
                 ${sos.status !== 'resolved' ? `
-                    <button onclick="updateSOSStatus('${sos.id}', '${sos.status === 'pending' ? 'in_progress' : 'resolvedこと' in window ? '' : 'resolved'}')" class="bg-slate-900 text-white text-xs px-3 py-2 rounded-lg hover:bg-slate-800 transition">
+                    <button onclick="updateSOSStatus('${sos.id}', '${sos.status === 'pending' ? 'in_progress' : 'resolved'}')" class="bg-slate-900 text-white text-xs px-3 py-2 rounded-lg hover:bg-slate-800 transition">
                         ${sos.status === 'pending' ? 'รับเคสนี้' : 'เคลียร์แล้ว'}
                     </button>
                 ` : ''}
@@ -85,15 +85,80 @@ async function loadSOS() {
 }
 
 async function updateSOSStatus(id, newStatus) {
-    const { error } = await sb.from('sos_requests').update({ 
+    await sb.from('sos_requests').update({ 
         status: newStatus,
         mentor_email: currentUser.email 
     }).eq('id', id);
-
-    if (error) alert('อัปเดตไม่สำเร็จ: ' + error.message);
 }
 
-// ฟังก์ชันให้พี่ๆ พิมพ์ประกาศส่งขึ้นเว็บ
+async function loadTableList() {
+    const { data, error } = await sb.from('messages').select('table_no').not('table_no', 'is', null);
+    if (error) return;
+
+    const tables = [...new Set(data.map(item => item.table_no))];
+    const container = document.getElementById('table-list');
+    if (!container) return;
+    
+    if (tables.length === 0) {
+        container.innerHTML = `<p class="text-xs text-slate-400">ยังไม่มีโต๊ะทักแชทมา</p>`;
+        return;
+    }
+
+    container.innerHTML = tables.map(table => `
+        <button onclick="selectChatTable('${table}')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-indigo-50 font-medium text-sm transition ${activeTable === table ? 'bg-indigo-50 text-indigo-600' : 'text-slate-700'}">
+            📌 ${table}
+        </button>
+    `).join('');
+}
+
+function selectChatTable(table) {
+    activeTable = table;
+    document.getElementById('active-chat-title').innerText = `กำลังคุยกับ: ${table}`;
+    loadMentorMessages();
+    loadTableList();
+}
+
+async function loadMentorMessages() {
+    if (!activeTable) return;
+    const { data, error } = await sb.from('messages')
+        .select('*')
+        .eq('table_no', activeTable)
+        .order('created_at', { ascending: true });
+        
+    if (error) return;
+
+    const container = document.getElementById('mentor-chat-messages');
+    container.innerHTML = data.map(msg => `
+        <div class="p-3 bg-white rounded-xl shadow-sm max-w-md border border-slate-100 ${msg.sender_email === currentUser.email ? 'ml-auto bg-indigo-50/50' : ''}">
+            <p class="text-xs text-slate-400 mb-1">${msg.sender_email}</p>
+            <p class="text-sm text-slate-700">${msg.content}</p>
+        </div>
+    `).join('');
+    container.scrollTop = container.scrollHeight;
+}
+
+async function sendMentorMessage() {
+    if (!activeTable) {
+        alert('กรุณาเลือกโต๊ะทางซ้ายมือก่อนตอบกลับ');
+        return;
+    }
+    const input = document.getElementById('mentor-chat-input');
+    const content = input.value.trim();
+    if (!content) return;
+
+    const { error } = await sb.from('messages').insert([{
+        sender_id: currentUser.id,
+        sender_email: currentUser.email,
+        table_no: activeTable,
+        content: content
+    }]);
+
+    if (!error) {
+        input.value = '';
+        loadMentorMessages();
+    }
+}
+
 async function postAnnouncement() {
     const title = document.getElementById('ann-title').value.trim();
     const content = document.getElementById('ann-content').value.trim();
@@ -108,14 +173,16 @@ async function postAnnouncement() {
         document.getElementById('ann-title').value = '';
         document.getElementById('ann-content').value = '';
         switchTab('dashboard');
-    } else {
-        alert('เกิดข้อผิดพลาด: ' + error.message);
     }
 }
 
 function setupRealtime() {
     sb.channel('mentor-realtime')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'sos_requests' }, () => loadSOS())
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => {
+            loadTableList();
+            if (activeTable) loadMentorMessages();
+        })
         .subscribe();
 }
 
