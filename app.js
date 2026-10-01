@@ -1,13 +1,13 @@
 // ตั้งค่าการเชื่อมต่อ Supabase (เปลี่ยนค่าด้านล่างนี้เป็นของตัวเอง)
 const SUPABASE_URL = 'https://zbytsducqtvmbnatzuyl.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpieXRzZHVjcXR2bWJuYXR6dXlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA4NjMzODQsImV4cCI6MjEwNjQzOTM4NH0.JUJiVV-I5Qtu7L_FMnhioS4xgEi9uTV1B_ZlBb-8zNg';
-supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let currentUser = null;
 
 // 1. ตรวจสอบสถานะการล็อกอินเมื่อเปิดเว็บ
 async function checkUser() {
-    const { data: { session }, error } = await supabase.auth.getSession();
+    const { data: { session }, error } = await sb.auth.getSession();
     if (session) {
         currentUser = session.user;
         document.getElementById('auth-container').classList.add('hidden');
@@ -27,13 +27,13 @@ async function checkUser() {
     }
 }
 
-// 2. ผูก Event ให้ปุ่ม Login เมื่อหน้าเว็บโหลดเสร็จ (ป้องกันกดแล้วเงียบ)
+// 2. ผูก Event ให้ปุ่ม Login เมื่อหน้าเว็บโหลดเสร็จ
 window.addEventListener('DOMContentLoaded', () => {
     const loginBtn = document.getElementById('login-btn');
     if (loginBtn) {
         loginBtn.addEventListener('click', async () => {
             console.log("กำลังพยายามเชื่อมต่อ Google OAuth...");
-            const { data, error } = await supabase.auth.signInWithOAuth({
+            const { data, error } = await sb.auth.signInWithOAuth({
                 provider: 'google',
                 options: { redirectTo: window.location.origin }
             });
@@ -49,7 +49,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
 // 3. ปุ่ม Logout
 document.getElementById('logout-btn').addEventListener('click', async () => {
-    await supabase.auth.signOut();
+    await sb.auth.signOut();
     window.location.reload();
 });
 
@@ -63,7 +63,7 @@ function switchTab(tabName) {
 // 5. ระบบแชท (Realtime Chat)
 // ==========================================
 async function loadMessages() {
-    const { data, error } = await supabase.from('messages').select('*').order('created_at', { ascending: true });
+    const { data, error } = await sb.from('messages').select('*').order('created_at', { ascending: true });
     if (error) return;
     
     const container = document.getElementById('chat-messages');
@@ -80,7 +80,7 @@ async function sendMessage() {
     const content = input.value.trim();
     if (!content) return;
 
-    const { error } = await supabase.from('messages').insert([{
+    const { error } = await sb.from('messages').insert([{
         sender_id: currentUser.id,
         content: content
     }]);
@@ -103,7 +103,7 @@ async function sendSOS() {
         return;
     }
 
-    const { error } = await supabase.from('sos_requests').insert([{
+    const { error } = await sb.from('sos_requests').insert([{
         student_id: currentUser.id,
         student_email: currentUser.email,
         table_no: tableNo,
@@ -121,7 +121,7 @@ async function sendSOS() {
 }
 
 async function loadSOS() {
-    const { data, error } = await supabase.from('sos_requests').select('*').order('created_at', { ascending: false });
+    const { data, error } = await sb.from('sos_requests').select('*').order('created_at', { ascending: false });
     if (error) return;
 
     const container = document.getElementById('mentor-sos-list');
@@ -160,7 +160,7 @@ async function loadSOS() {
 }
 
 async function updateSOSStatus(id, newStatus) {
-    const { error } = await supabase.from('sos_requests').update({ 
+    const { error } = await sb.from('sos_requests').update({ 
         status: newStatus,
         mentor_email: currentUser.email 
     }).eq('id', id);
@@ -172,7 +172,7 @@ async function updateSOSStatus(id, newStatus) {
 // 7. ระบบประกาศ (Announcements)
 // ==========================================
 async function loadAnnouncements() {
-    const { data, error } = await supabase.from('announcements').select('*').order('created_at', { ascending: false });
+    const { data, error } = await sb.from('announcements').select('*').order('created_at', { ascending: false });
     if (error) return;
 
     const container = document.getElementById('announcement-list');
@@ -195,7 +195,7 @@ async function loadAnnouncements() {
 // 8. Supabase Realtime Subscription
 // ==========================================
 function setupRealtime() {
-    supabase.channel('camp-realtime-channel')
+    sb.channel('camp-realtime-channel')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
             loadMessages();
         })
