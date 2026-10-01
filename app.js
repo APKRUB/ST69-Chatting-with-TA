@@ -11,6 +11,7 @@ let userProfile = {
     dob: localStorage.getItem('profile_dob') || '',
     no: localStorage.getItem('profile_no') || ''
 };
+let lastReadAnn = Number(localStorage.getItem('last_read_ann') || 0);
 
 function initTheme() {
     const theme = localStorage.getItem('theme') || 'light';
@@ -82,8 +83,14 @@ document.getElementById('logout-btn').addEventListener('click', async () => {
 function switchTab(tabName) {
     document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
     document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+    
     if (tabName === 'poll') loadStudentPolls();
     if (tabName === 'chat') loadMessages();
+    if (tabName === 'announcement') {
+        lastReadAnn = Date.now();
+        localStorage.setItem('last_read_ann', lastReadAnn);
+        document.getElementById('badge-ann').classList.add('hidden');
+    }
 }
 
 function openSettings() {
@@ -242,18 +249,26 @@ async function loadAnnouncements() {
     const { data } = await sb.from('announcements').select('*').order('created_at', { ascending: false });
     const container = document.getElementById('announcement-list');
     if (!container || !data) return;
+
     container.innerHTML = data.map(ann => `
         <div class="p-4 bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 border-l-4 border-indigo-600">
             <h3 class="font-bold text-slate-800 dark:text-slate-100">${ann.title}</h3>
             <p class="text-sm text-slate-600 dark:text-slate-400 mt-1">${ann.content}</p>
         </div>
     `).join('');
+
+    if (data.length > 0) {
+        if (new Date(data[0].created_at).getTime() > lastReadAnn && document.getElementById('tab-announcement').classList.contains('hidden')) {
+            document.getElementById('badge-ann').classList.remove('hidden');
+        }
+    }
 }
 
 function setupRealtime() {
     sb.channel('student-rt')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => loadMessages())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'polls' }, () => loadStudentPolls())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, () => loadAnnouncements())
         .subscribe();
 }
 
