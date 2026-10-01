@@ -17,7 +17,7 @@ async function checkUser() {
         // โหลดข้อมูลเริ่มต้น
         loadMessages();
         loadAnnouncements();
-        loadSOS(); // โหลดรายการ SOS ด้วย
+        loadSOS();
         
         // เปิดระบบ Realtime ฟังการเปลี่ยนแปลงจากฐานข้อมูล
         setupRealtime();
@@ -27,10 +27,10 @@ async function checkUser() {
     }
 }
 
-// 2. ปุ่ม Login ด้วย GitHub
+// 2. ปุ่ม Login ด้วย Google
 document.getElementById('login-btn').addEventListener('click', async () => {
     const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'github',
+        provider: 'google',
         options: { redirectTo: window.location.origin }
     });
     if (error) alert('Login Error: ' + error.message);
@@ -76,7 +76,6 @@ async function sendMessage() {
 
     if (!error) {
         input.value = '';
-        // ไม่ต้องเรียก loadMessages() เอง เพราะ Realtime จะอัปเดตให้ให้อัตโนมัติ!
     } else {
         alert('ส่งข้อความไม่สำเร็จ: ' + error.message);
     }
@@ -111,8 +110,6 @@ async function sendSOS() {
 async function loadSOS() {
     const { data, error } = await supabase.from('sos_requests').select('*').order('created_at', { ascending: false });
     if (error) return;
-
-    // ถ้าหน้าจอมีส่วนแสดงรายการ SOS ให้เรนเดอร์ (เดี๋ยวเราเพิ่ม HTML ส่วนนี้กัน)
     console.log("SOS List loaded:", data);
 }
 
@@ -138,19 +135,16 @@ async function loadAnnouncements() {
 }
 
 // ==========================================
-// 8. Supabase Realtime (หัวใจสำคัญ: ข้อมูลซิงค์ทันที)
+// 8. Supabase Realtime Subscription
 // ==========================================
 function setupRealtime() {
     supabase.channel('camp-realtime-channel')
-        // ฟังการเปลี่ยนแปลงตาราง messages (มีคนส่งแชทใหม่มา)
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
             loadMessages();
         })
-        // ฟังการเปลี่ยนแปลงตาราง sos_requests (มีการกดเรียกพี่ หรือเปลี่ยนสถานะ)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'sos_requests' }, payload => {
             loadSOS();
         })
-        // ฟังการเปลี่ยนแปลงตาราง announcements (มีประกาศใหม่)
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'announcements' }, payload => {
             loadAnnouncements();
         })
@@ -158,4 +152,5 @@ function setupRealtime() {
 }
 
 // เริ่มต้นเช็ก User ทันทีที่เปิดหน้าเว็บ
+checkUser();
 checkUser();
