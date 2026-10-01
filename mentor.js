@@ -46,8 +46,8 @@ async function checkUser() {
         loadMentorAnnouncements();
         setupRealtime();
     } else {
-        document.getElementById('auth-container').classList.add('hidden');
-        document.getElementById('app-container').classList.remove('hidden');
+        document.getElementById('auth-container').classList.remove('hidden');
+        document.getElementById('app-container').classList.remove('hidden'); // ป้องกันหน้าค้างตอนยังไม่ล็อกอิน
     }
 }
 
@@ -63,18 +63,24 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-document.getElementById('logout-btn').addEventListener('click', async () => {
-    await sb.auth.signOut();
-    window.location.reload();
-});
+const logoutBtn = document.getElementById('logout-btn');
+if (logoutBtn) {
+    logoutBtn.addEventListener('click', async () => {
+        await sb.auth.signOut();
+        window.location.reload();
+    });
+}
 
 function switchTab(tabName) {
     document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-    document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+    const target = document.getElementById(`tab-${tabName}`);
+    if (target) target.classList.remove('hidden');
+    
     if (tabName === 'chat-rooms') loadTableList();
     if (tabName === 'post-announcement') loadMentorAnnouncements();
 }
 
+// --- ระบบ SOS ---
 async function loadSOS() {
     const { data, error } = await sb.from('sos_requests').select('*').order('created_at', { ascending: false });
     if (error) return;
@@ -105,22 +111,43 @@ async function loadSOS() {
                 </span>
                 
                 ${sos.status !== 'resolved' ? `
-                    <button onclick="updateSOSStatus('${sos.id}', '${sos.status === 'pending' ? 'in_progress' : 'resolved'}')" class="bg-slate-900 dark:bg-slate-800 text-white text-xs px-3 py-2 rounded-lg hover:bg-slate-800 transition">
-                        ${sos.status === 'pending' ? 'รับเคสนี้' : 'เคลียร์แล้ว'}
+                    <button onclick="updateSOSStatus('${sos.id}', 'in_progress')" class="bg-slate-900 dark:bg-slate-800 text-white text-xs px-3 py-2 rounded-lg hover:bg-slate-800 transition">
+                        ${sos.status === 'pending' ? 'รับเคสนี้' : 'อัปเดต'}
+                    </button>
+                    <button onclick="updateSOSStatus('${sos.id}', 'resolved')" class="bg-green-600 text-white text-xs px-3 py-2 rounded-lg hover:bg-green-700 transition">
+                        เสร็จสิ้น
                     </button>
                 ` : ''}
+
+                <button onclick="deleteSOS('${sos.id}')" class="text-xs bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400 px-2.5 py-2 rounded-lg hover:bg-red-100 transition" title="ลบเคสนี้">
+                    🗑 ลบ
+                </button>
             </div>
         </div>
     `).join('');
 }
 
 async function updateSOSStatus(id, newStatus) {
+    if (!currentUser) return;
     await sb.from('sos_requests').update({ 
         status: newStatus,
         mentor_email: currentUser.email 
     }).eq('id', id);
+    loadSOS();
 }
 
+async function deleteSOS(id) {
+    if (!confirm('คุณต้องการลบเคส SOS นี้ออกจากประวัติใช่หรือไม่?')) return;
+
+    const { error } = await sb.from('sos_requests').delete().eq('id', id);
+    if (!error) {
+        loadSOS();
+    } else {
+        alert('ลบเคสไม่สำเร็จ: ' + error.message);
+    }
+}
+
+// --- ระบบแชทรายโต๊ะ ---
 async function loadTableList() {
     const { data, error } = await sb.from('messages').select('table_no').not('table_no', 'is', null);
     if (error) return;
@@ -162,7 +189,7 @@ async function loadMentorMessages() {
     if(!container) return;
 
     container.innerHTML = data.map(msg => `
-        <div class="p-3 bg-white dark:bg-slate-900 rounded-xl shadow-sm max-w-md border border-slate-100 dark:border-slate-800 ${msg.sender_email === currentUser.email ? 'ml-auto bg-indigo-50/50 dark:bg-indigo-950/40' : ''}">
+        <div class="p-3 bg-white dark:bg-slate-900 rounded-xl shadow-sm max-w-md border border-slate-100 dark:border-slate-800 ${msg.sender_email === currentUser?.email ? 'ml-auto bg-indigo-50/50 dark:bg-indigo-950/40' : ''}">
             <p class="text-xs text-slate-400 mb-1">${msg.sender_email}</p>
             <p class="text-sm text-slate-700 dark:text-slate-200">${msg.content}</p>
         </div>
@@ -171,7 +198,7 @@ async function loadMentorMessages() {
 }
 
 async function sendMentorMessage() {
-    if (!activeTable) {
+    if (!activeTable || !currentUser) {
         alert('กรุณาเลือกโต๊ะทางซ้ายมือก่อนตอบกลับ');
         return;
     }
@@ -211,7 +238,7 @@ async function clearMentorChat() {
     }
 }
 
-// --- ระบบจัดการประกาศ (สร้าง / แก้ไข / ลบ) ---
+// --- ระบบจัดการประกาศ (Create, Edit, Delete) ---
 async function loadMentorAnnouncements() {
     const { data, error } = await sb.from('announcements').select('*').order('created_at', { ascending: false });
     if (error) return;
@@ -232,7 +259,7 @@ async function loadMentorAnnouncements() {
             </div>
             <div class="flex gap-1 shrink-0">
                 <button onclick="editAnnouncement('${ann.id}', \`${ann.title.replace(/`/g, '\\`')}\`, \`${ann.content.replace(/`/g, '\\`')}\`)" class="text-xs bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 px-2.5 py-1.5 rounded-lg hover:bg-blue-100 transition">✏️ แก้ไข</button>
-                <button onclick="deleteAnnouncement('${ann.id}')" class="text-xs bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400 px-2.5 py-1.5 rounded-lg hover:bg-red-100 transition">🗑️ ลบ</button>
+                <button onclick="deleteAnnouncement('${ann.id}')" class="text-xs bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400 px-2.5 py-1.5 rounded-lg hover:bg-red-100 transition">🗑️️ ลบ</button>
             </div>
         </div>
     `).join('');
@@ -249,7 +276,6 @@ async function saveAnnouncement() {
     }
 
     if (id) {
-        // อัปเดตประกาศเดิม (Edit)
         const { error } = await sb.from('announcements').update({ title, content }).eq('id', id);
         if (!error) {
             alert('✏️ แก้ไขประกาศสำเร็จ!');
@@ -259,7 +285,6 @@ async function saveAnnouncement() {
             alert('แก้ไขไม่สำเร็จ: ' + error.message);
         }
     } else {
-        // สร้างประกาศใหม่ (Create)
         const { error } = await sb.from('announcements').insert({ title, content });
         if (!error) {
             alert('📢 สร้างประกาศสำเร็จ!');
@@ -301,23 +326,29 @@ async function deleteAnnouncement(id) {
     }
 }
 
+// --- Realtime ---
 function setupRealtime() {
     sb.channel('mentor-realtime')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'sos_requests' }, () => loadSOS())
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => {
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
             loadTableList();
-            if (activeTable) loadMentorMessages();
+            if (activeTable && payload.new.table_no === activeTable) loadMentorMessages();
         })
         .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, () => {
             loadTableList();
             if (activeTable) loadMentorMessages();
         })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, () => {
+            loadMentorAnnouncements();
+        })
         .subscribe();
 }
 
+// ผูกฟังก์ชันเข้ากับ window
 window.toggleTheme = toggleTheme;
 window.switchTab = switchTab;
 window.updateSOSStatus = updateSOSStatus;
+window.deleteSOS = deleteSOS;
 window.selectChatTable = selectChatTable;
 window.sendMentorMessage = sendMentorMessage;
 window.clearMentorChat = clearMentorChat;
