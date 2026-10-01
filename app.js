@@ -11,10 +11,12 @@ function initTheme() {
     const theme = localStorage.getItem('theme') || 'light';
     if (theme === 'dark') {
         document.documentElement.classList.add('dark');
-        document.getElementById('theme-label').innerText = 'โหมดสว่าง';
+        const label = document.getElementById('theme-label');
+        if(label) label.innerText = 'โหมดสว่าง';
     } else {
         document.documentElement.classList.remove('dark');
-        document.getElementById('theme-label').innerText = 'โหมดมืด';
+        const label = document.getElementById('theme-label');
+        if(label) label.innerText = 'โหมดมืด';
     }
 }
 
@@ -22,11 +24,13 @@ function toggleTheme() {
     if (document.documentElement.classList.contains('dark')) {
         document.documentElement.classList.remove('dark');
         localStorage.setItem('theme', 'light');
-        document.getElementById('theme-label').innerText = 'โหมดมืด';
+        const label = document.getElementById('theme-label');
+        if(label) label.innerText = 'โหมดมืด';
     } else {
         document.documentElement.classList.add('dark');
         localStorage.setItem('theme', 'dark');
-        document.getElementById('theme-label').innerText = 'โหมดสว่าง';
+        const label = document.getElementById('theme-label');
+        if(label) label.innerText = 'โหมดสว่าง';
     }
 }
 
@@ -170,5 +174,12 @@ function setupRealtime() {
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'announcements' }, () => loadAnnouncements())
         .subscribe();
 }
+
+// ผูกฟังก์ชันเข้ากับ window เพื่อให้ HTML เรียกใช้งานได้ชัวร์ๆ
+window.toggleTheme = toggleTheme;
+window.switchTab = switchTab;
+window.changeMyTable = changeMyTable;
+window.sendMessage = sendMessage;
+window.sendSOS = sendSOS;
 
 checkUser();
