@@ -17,6 +17,10 @@ async function checkUser() {
         // โหลดข้อมูลเริ่มต้น
         loadMessages();
         loadAnnouncements();
+        loadSOS(); // โหลดรายการ SOS ด้วย
+        
+        // เปิดระบบ Realtime ฟังการเปลี่ยนแปลงจากฐานข้อมูล
+        setupRealtime();
     } else {
         document.getElementById('auth-container').classList.remove('hidden');
         document.getElementById('app-container').classList.add('hidden');
@@ -44,13 +48,12 @@ function switchTab(tabName) {
     document.getElementById(`tab-${tabName}`).classList.remove('hidden');
 }
 
-// 5. ระบบแชทพื้นฐาน (ดึงข้อความ & ส่งข้อความ)
+// ==========================================
+// 5. ระบบแชท (Realtime Chat)
+// ==========================================
 async function loadMessages() {
     const { data, error } = await supabase.from('messages').select('*').order('created_at', { ascending: true });
-    if (error) {
-        console.error(error);
-        return;
-    }
+    if (error) return;
     
     const container = document.getElementById('chat-messages');
     container.innerHTML = data.map(msg => `
@@ -73,13 +76,15 @@ async function sendMessage() {
 
     if (!error) {
         input.value = '';
-        loadMessages();
+        // ไม่ต้องเรียก loadMessages() เอง เพราะ Realtime จะอัปเดตให้ให้อัตโนมัติ!
     } else {
         alert('ส่งข้อความไม่สำเร็จ: ' + error.message);
     }
 }
 
-// 6. ระบบกดเรียกพี่ (SOS)
+// ==========================================
+// 6. ระบบกดเรียกพี่ (SOS Requests)
+// ==========================================
 async function sendSOS() {
     const tableNo = document.getElementById('sos-table').value.trim();
     const topic = document.getElementById('sos-topic').value.trim();
@@ -103,7 +108,17 @@ async function sendSOS() {
     }
 }
 
-// 7. โหลดประกาศ
+async function loadSOS() {
+    const { data, error } = await supabase.from('sos_requests').select('*').order('created_at', { ascending: false });
+    if (error) return;
+
+    // ถ้าหน้าจอมีส่วนแสดงรายการ SOS ให้เรนเดอร์ (เดี๋ยวเราเพิ่ม HTML ส่วนนี้กัน)
+    console.log("SOS List loaded:", data);
+}
+
+// ==========================================
+// 7. ระบบประกาศจากค่าย (Announcements)
+// ==========================================
 async function loadAnnouncements() {
     const { data, error } = await supabase.from('announcements').select('*').order('created_at', { ascending: false });
     if (error) return;
@@ -120,6 +135,26 @@ async function loadAnnouncements() {
             <p class="text-sm text-slate-600 mt-1">${ann.content}</p>
         </div>
     `).join('');
+}
+
+// ==========================================
+// 8. Supabase Realtime (หัวใจสำคัญ: ข้อมูลซิงค์ทันที)
+// ==========================================
+function setupRealtime() {
+    supabase.channel('camp-realtime-channel')
+        // ฟังการเปลี่ยนแปลงตาราง messages (มีคนส่งแชทใหม่มา)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
+            loadMessages();
+        })
+        // ฟังการเปลี่ยนแปลงตาราง sos_requests (มีการกดเรียกพี่ หรือเปลี่ยนสถานะ)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'sos_requests' }, payload => {
+            loadSOS();
+        })
+        // ฟังการเปลี่ยนแปลงตาราง announcements (มีประกาศใหม่)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'announcements' }, payload => {
+            loadAnnouncements();
+        })
+        .subscribe();
 }
 
 // เริ่มต้นเช็ก User ทันทีที่เปิดหน้าเว็บ
