@@ -6,7 +6,6 @@
     <title>Camp Support - สำหรับน้องๆ</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-        // ตั้งค่า Tailwind ให้รองรับ Dark Mode แบบ Class
         tailwind.config = { darkMode: 'class' }
     </script>
 </head>
@@ -41,7 +40,6 @@
                 </nav>
             </div>
             <div class="space-y-2">
-                <!-- ปุ่มสลับธีม -->
                 <button onclick="toggleTheme()" class="w-full text-left px-4 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 font-medium text-sm transition flex items-center gap-2">
                     🌓 <span id="theme-label">เปลี่ยนธีม</span>
                 </button>
@@ -92,6 +90,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="app.js?v=2"></script>
+    <script src="app.js?v=4"></script>
 </body>
 </html>
