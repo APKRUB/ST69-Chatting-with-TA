@@ -107,7 +107,7 @@ async function loadSOS() {
                     sos.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
                     sos.status === 'in_progress' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
                 }">
-                    ${sos.status === 'pending' ? '⏳ รอรับเคส' : sos.status === 'in_progress' ? '🏃‍♂️️ กำลังไป' : '✅ เคลียร์แล้ว'}
+                    ${sos.status === 'pending' ? '⏳ รอรับเคส' : sos.status === 'in_progress' ? '🏃‍♂️ กำลังไป' : '✅ เคลียร์แล้ว'}
                 </span>
                 ${sos.status !== 'resolved' ? `
                     <button onclick="updateSOSStatus('${sos.id}', 'in_progress')" class="bg-slate-900 dark:bg-slate-800 text-white text-xs px-3 py-2 rounded-lg">รับเคส</button>
@@ -130,7 +130,6 @@ async function deleteSOS(id) {
     loadSOS();
 }
 
-// --- ระบบ Poll สำหรับ Mentor (คำนวณ % ผลโหวต) ---
 async function createPoll() {
     const question = document.getElementById('poll-question').value.trim();
     const optionsRaw = document.getElementById('poll-options').value.trim();
@@ -153,6 +152,7 @@ async function createPoll() {
         alert('🚀 สร้าง Poll สำเร็จ!');
         document.getElementById('poll-question').value = '';
         document.getElementById('poll-options').value = '';
+        document.getElementById('poll-expires').value = '';
         loadMentorPolls();
     } else {
         alert('สร้างไม่สำเร็จ: ' + error.message);
@@ -181,7 +181,7 @@ async function loadMentorPolls() {
                     <h4 class="font-bold text-base">${poll.question}</h4>
                     <button onclick="deletePoll('${poll.id}')" class="text-xs text-red-500 hover:underline">ลบ Poll</button>
                 </div>
-                <p class="text-xs text-slate-400">จำนวนคนโหวตทั้งหมด: <b>${totalVotes}</b> คน</p>
+                <p class="text-xs text-slate-400">จำนวนคนโหวตทั้งหมด: <b>${totalVotes}</b> คน ${poll.expires_at ? `(ปิด: ${new Date(poll.expires_at).toLocaleString('th-TH')})` : ''}</p>
                 <div class="space-y-2">
                     ${poll.options.map((opt, idx) => {
                         const count = pollVotes.filter(v => v.selected_option === idx).length;
@@ -305,6 +305,7 @@ function setupRealtime() {
         .on('postgres_changes', { event: '*', schema: 'public', table: 'sos_requests' }, () => loadSOS())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => { loadTableList(); loadMentorMessages(); })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'polls' }, () => loadMentorPolls())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'poll_votes' }, () => loadMentorPolls())
         .subscribe();
 }
 
