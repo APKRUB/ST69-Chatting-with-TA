@@ -178,9 +178,24 @@ async function loadAnnouncements() {
 }
 
 function setupRealtime() {
-    sb.channel('student-realtime')
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => loadMessages())
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'announcements' }, () => loadAnnouncements())
+    sb.channel('public:messages')
+        .on('postgres_changes', { 
+            event: 'INSERT', 
+            schema: 'public', 
+            table: 'messages' 
+        }, payload => {
+            // ถ้าข้อความใหม่ตรงกับโต๊ะที่เราเปิดอยู่ ให้โหลดข้อความใหม่ทันที
+            if (payload.new.table_no === myTable) {
+                loadMessages();
+            }
+        })
+        .on('postgres_changes', { 
+            event: 'INSERT', 
+            schema: 'public', 
+            table: 'announcements' 
+        }, () => {
+            loadAnnouncements();
+        })
         .subscribe();
 }
 
