@@ -5,21 +5,21 @@ const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let currentUser = null;
 
-// 1. ตรวจสอบว่าผู้ใช้ล็อกอินอยู่หรือยังตอนเปิดเว็บ
+// 1. ตรวจสอบสถานะการล็อกอินเมื่อเปิดเว็บ
 async function checkUser() {
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session }, error } = await supabase.auth.getSession();
     if (session) {
         currentUser = session.user;
         document.getElementById('auth-container').classList.add('hidden');
         document.getElementById('app-container').classList.remove('hidden');
         document.getElementById('user-info').innerText = `👤 ${currentUser.email}`;
         
-        // โหลดข้อมูลเริ่มต้น
+        // โหลดข้อมูลเริ่มต้นทั้งหมด
         loadMessages();
         loadAnnouncements();
         loadSOS();
         
-        // เปิดระบบ Realtime ฟังการเปลี่ยนแปลงจากฐานข้อมูล
+        // เปิดระบบ Realtime
         setupRealtime();
     } else {
         document.getElementById('auth-container').classList.remove('hidden');
@@ -27,13 +27,24 @@ async function checkUser() {
     }
 }
 
-// 2. ปุ่ม Login ด้วย Google
-document.getElementById('login-btn').addEventListener('click', async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: { redirectTo: window.location.origin }
-    });
-    if (error) alert('Login Error: ' + error.message);
+// 2. ผูก Event ให้ปุ่ม Login เมื่อหน้าเว็บโหลดเสร็จ (ป้องกันกดแล้วเงียบ)
+window.addEventListener('DOMContentLoaded', () => {
+    const loginBtn = document.getElementById('login-btn');
+    if (loginBtn) {
+        loginBtn.addEventListener('click', async () => {
+            console.log("กำลังพยายามเชื่อมต่อ Google OAuth...");
+            const { data, error } = await supabase.auth.signInWithOAuth({
+                provider: 'google',
+                options: { redirectTo: window.location.origin }
+            });
+            if (error) {
+                alert('Login Error: ' + error.message);
+                console.error(error);
+            }
+        });
+    } else {
+        console.error("หาปุ่ม login-btn ไม่พบในหน้า HTML!");
+    }
 });
 
 // 3. ปุ่ม Logout
@@ -82,7 +93,7 @@ async function sendMessage() {
 }
 
 // ==========================================
-// 6. ระบบกดเรียกพี่ (SOS Requests)
+// 6. ระบบกดเรียกพี่ (SOS & Mentor Dashboard)
 // ==========================================
 async function sendSOS() {
     const tableNo = document.getElementById('sos-table').value.trim();
@@ -94,6 +105,7 @@ async function sendSOS() {
 
     const { error } = await supabase.from('sos_requests').insert([{
         student_id: currentUser.id,
+        student_email: currentUser.email,
         table_no: tableNo,
         topic: topic,
         status: 'pending'
@@ -102,6 +114,7 @@ async function sendSOS() {
     if (!error) {
         alert('🚨 ส่งสัญญาณเรียกพี่สำเร็จ พี่ๆ กำลังไปหาครับ!');
         document.getElementById('sos-topic').value = '';
+        switchTab('chat'); // ส่งเสร็จเด้งไปหน้าแชทรอ
     } else {
         alert('ส่ง SOS ไม่สำเร็จ: ' + error.message);
     }
@@ -110,17 +123,61 @@ async function sendSOS() {
 async function loadSOS() {
     const { data, error } = await supabase.from('sos_requests').select('*').order('created_at', { ascending: false });
     if (error) return;
-    console.log("SOS List loaded:", data);
+
+    const container = document.getElementById('mentor-sos-list');
+    if (!container) return;
+
+    if (data.length === 0) {
+        container.innerHTML = `<p class="text-sm text-slate-400">ยังไม่มีเคสเรียกความช่วยเหลือในขณะนี้</p>`;
+        return;
+    }
+
+    container.innerHTML = data.map(sos => `
+        <div class="p-4 bg-white rounded-xl shadow-sm border border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+                <div class="flex items-center gap-2">
+                    <span class="bg-indigo-100 text-indigo-700 font-bold px-3 py-1 rounded-lg text-sm">${sos.table_no}</span>
+                    <span class="text-xs text-slate-400">ผู้ส่ง: ${sos.student_email || 'ไม่ระบุ'}</span>
+                </div>
+                <p class="text-slate-800 font-medium mt-2">📌 ปัญหา: ${sos.topic}</p>
+            </div>
+            <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <span class="px-3 py-1 text-xs rounded-full font-medium ${
+                    sos.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                    sos.status === 'in_progress' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
+                }">
+                    ${sos.status === 'pending' ? '⏳ รอรับเคส' : sos.status === 'in_progress' ? '🏃‍♂️ กำลังไป' : '✅ เคลียร์แล้ว'}
+                </span>
+                
+                ${sos.status !== 'resolved' ? `
+                    <button onclick="updateSOSStatus('${sos.id}', '${sos.status === 'pending' ? 'in_progress' : 'resolved'}')" class="bg-slate-900 text-white text-xs px-3 py-2 rounded-lg hover:bg-slate-800 transition">
+                        ${sos.status === 'pending' ? 'รับเคสนี้' : 'ทำเครื่องหมายว่าเคลียร์แล้ว'}
+                    </button>
+                ` : ''}
+            </div>
+        </div>
+    `).join('');
+}
+
+async function updateSOSStatus(id, newStatus) {
+    const { error } = await supabase.from('sos_requests').update({ 
+        status: newStatus,
+        mentor_email: currentUser.email 
+    }).eq('id', id);
+
+    if (error) alert('อัปเดตสถานะไม่สำเร็จ: ' + error.message);
 }
 
 // ==========================================
-// 7. ระบบประกาศจากค่าย (Announcements)
+// 7. ระบบประกาศ (Announcements)
 // ==========================================
 async function loadAnnouncements() {
     const { data, error } = await supabase.from('announcements').select('*').order('created_at', { ascending: false });
     if (error) return;
 
     const container = document.getElementById('announcement-list');
+    if (!container) return;
+
     if (data.length === 0) {
         container.innerHTML = `<p class="text-sm text-slate-400">ยังไม่มีประกาศจากค่ายในขณะนี้</p>`;
         return;
@@ -151,6 +208,5 @@ function setupRealtime() {
         .subscribe();
 }
 
-// เริ่มต้นเช็ก User ทันทีที่เปิดหน้าเว็บ
-checkUser();
+// เริ่มต้นตรวจสอบ User ทันทีที่โหลดสคริปต์
 checkUser();
