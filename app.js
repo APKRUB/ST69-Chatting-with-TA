@@ -6,7 +6,6 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let currentUser = null;
 let myTable = localStorage.getItem('my_table') || '';
 
-// ระบบจัดการธีมมืด/สว่าง
 function initTheme() {
     const theme = localStorage.getItem('theme') || 'light';
     if (theme === 'dark') {
@@ -106,7 +105,6 @@ async function loadMessages() {
     container.scrollTop = container.scrollHeight;
 }
 
-// ป้องกัน Error 400 ด้วยโครงสร้าง Object ที่ปลอดภัย
 async function sendMessage() {
     if (!myTable) {
         alert('กรุณาระบุเลขที่โต๊ะก่อนส่งข้อความครับ');
@@ -128,7 +126,6 @@ async function sendMessage() {
         loadMessages();
     } else {
         alert('ส่งไม่สำเร็จ: ' + error.message);
-        console.error("Supabase Error:", error);
     }
 }
 
@@ -152,8 +149,6 @@ async function sendSOS() {
         alert('🚨 ส่งสัญญาณเรียกพี่สำเร็จ!');
         document.getElementById('sos-topic').value = '';
         switchTab('chat');
-    } else {
-        alert('ส่ง SOS ไม่สำเร็จ: ' + error.message);
     }
 }
 
@@ -178,28 +173,14 @@ async function loadAnnouncements() {
 }
 
 function setupRealtime() {
-    sb.channel('public:messages')
-        .on('postgres_changes', { 
-            event: 'INSERT', 
-            schema: 'public', 
-            table: 'messages' 
-        }, payload => {
-            // ถ้าข้อความใหม่ตรงกับโต๊ะที่เราเปิดอยู่ ให้โหลดข้อความใหม่ทันที
-            if (payload.new.table_no === myTable) {
-                loadMessages();
-            }
+    sb.channel('student-realtime')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
+            if (payload.new.table_no === myTable) loadMessages();
         })
-        .on('postgres_changes', { 
-            event: 'INSERT', 
-            schema: 'public', 
-            table: 'announcements' 
-        }, () => {
-            loadAnnouncements();
-        })
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'announcements' }, () => loadAnnouncements())
         .subscribe();
 }
 
-// ผูกฟังก์ชันเข้ากับ window เพื่อให้ปุ่มใน HTML เรียกใช้ได้สมบูรณ์
 window.toggleTheme = toggleTheme;
 window.switchTab = switchTab;
 window.changeMyTable = changeMyTable;
