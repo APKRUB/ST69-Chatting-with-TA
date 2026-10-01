@@ -43,6 +43,7 @@ async function checkUser() {
         
         loadSOS();
         loadTableList();
+        loadMentorAnnouncements();
         setupRealtime();
     } else {
         document.getElementById('auth-container').classList.add('hidden');
@@ -71,6 +72,7 @@ function switchTab(tabName) {
     document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
     document.getElementById(`tab-${tabName}`).classList.remove('hidden');
     if (tabName === 'chat-rooms') loadTableList();
+    if (tabName === 'post-announcement') loadMentorAnnouncements();
 }
 
 async function loadSOS() {
@@ -192,7 +194,6 @@ async function sendMentorMessage() {
     }
 }
 
-// ฟังก์ชันลบแชทประจำโต๊ะ (ให้เฉพาะ Mentor กดได้)
 async function clearMentorChat() {
     if (!activeTable) {
         alert('กรุณาเลือกโต๊ะทางซ้ายมือก่อนครับ');
@@ -210,20 +211,93 @@ async function clearMentorChat() {
     }
 }
 
-async function postAnnouncement() {
+// --- ระบบจัดการประกาศ (สร้าง / แก้ไข / ลบ) ---
+async function loadMentorAnnouncements() {
+    const { data, error } = await sb.from('announcements').select('*').order('created_at', { ascending: false });
+    if (error) return;
+
+    const container = document.getElementById('mentor-announcement-list');
+    if (!container) return;
+
+    if (data.length === 0) {
+        container.innerHTML = `<p class="text-sm text-slate-400">ยังไม่มีประกาศในระบบ</p>`;
+        return;
+    }
+
+    container.innerHTML = data.map(ann => `
+        <div class="p-4 bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 flex justify-between items-start gap-3">
+            <div>
+                <h4 class="font-bold text-slate-800 dark:text-slate-100">${ann.title}</h4>
+                <p class="text-sm text-slate-600 dark:text-slate-400 mt-1">${ann.content}</p>
+            </div>
+            <div class="flex gap-1 shrink-0">
+                <button onclick="editAnnouncement('${ann.id}', \`${ann.title.replace(/`/g, '\\`')}\`, \`${ann.content.replace(/`/g, '\\`')}\`)" class="text-xs bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 px-2.5 py-1.5 rounded-lg hover:bg-blue-100 transition">✏️ แก้ไข</button>
+                <button onclick="deleteAnnouncement('${ann.id}')" class="text-xs bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400 px-2.5 py-1.5 rounded-lg hover:bg-red-100 transition">🗑️ ลบ</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function saveAnnouncement() {
+    const id = document.getElementById('ann-id').value;
     const title = document.getElementById('ann-title').value.trim();
     const content = document.getElementById('ann-content').value.trim();
+
     if (!title || !content) {
         alert('กรุณากรอกหัวข้อและเนื้อหาประกาศ');
         return;
     }
 
-    const { error } = await sb.from('announcements').insert({ title, content });
+    if (id) {
+        // อัปเดตประกาศเดิม (Edit)
+        const { error } = await sb.from('announcements').update({ title, content }).eq('id', id);
+        if (!error) {
+            alert('✏️ แก้ไขประกาศสำเร็จ!');
+            resetAnnForm();
+            loadMentorAnnouncements();
+        } else {
+            alert('แก้ไขไม่สำเร็จ: ' + error.message);
+        }
+    } else {
+        // สร้างประกาศใหม่ (Create)
+        const { error } = await sb.from('announcements').insert({ title, content });
+        if (!error) {
+            alert('📢 สร้างประกาศสำเร็จ!');
+            resetAnnForm();
+            loadMentorAnnouncements();
+        } else {
+            alert('สร้างไม่สำเร็จ: ' + error.message);
+        }
+    }
+}
+
+function editAnnouncement(id, title, content) {
+    document.getElementById('ann-id').value = id;
+    document.getElementById('ann-title').value = title;
+    document.getElementById('ann-content').value = content;
+    document.getElementById('ann-form-title').innerText = '✏️ แก้ไขประกาศ';
+    document.getElementById('ann-submit-btn').innerText = 'บันทึกการแก้ไข';
+    document.getElementById('ann-cancel-btn').classList.remove('hidden');
+    document.getElementById('ann-title').scrollIntoView({ behavior: 'smooth' });
+}
+
+function resetAnnForm() {
+    document.getElementById('ann-id').value = '';
+    document.getElementById('ann-title').value = '';
+    document.getElementById('ann-content').value = '';
+    document.getElementById('ann-form-title').innerText = '📝 สร้างประกาศใหม่';
+    document.getElementById('ann-submit-btn').innerText = '📢 เผยแพร่ประกาศ';
+    document.getElementById('ann-cancel-btn').classList.add('hidden');
+}
+
+async function deleteAnnouncement(id) {
+    if (!confirm('คุณต้องการลบประกาศนี้ใช่หรือไม่?')) return;
+
+    const { error } = await sb.from('announcements').delete().eq('id', id);
     if (!error) {
-        alert('📢 สร้างประกาศสำเร็จ!');
-        document.getElementById('ann-title').value = '';
-        document.getElementById('ann-content').value = '';
-        switchTab('dashboard');
+        loadMentorAnnouncements();
+    } else {
+        alert('ลบประกาศไม่สำเร็จ: ' + error.message);
     }
 }
 
@@ -247,6 +321,9 @@ window.updateSOSStatus = updateSOSStatus;
 window.selectChatTable = selectChatTable;
 window.sendMentorMessage = sendMentorMessage;
 window.clearMentorChat = clearMentorChat;
-window.postAnnouncement = postAnnouncement;
+window.saveAnnouncement = saveAnnouncement;
+window.editAnnouncement = editAnnouncement;
+window.resetAnnForm = resetAnnForm;
+window.deleteAnnouncement = deleteAnnouncement;
 
 checkUser();
