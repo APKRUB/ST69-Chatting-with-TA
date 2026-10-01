@@ -5,6 +5,8 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let currentUser = null;
 let myTable = localStorage.getItem('my_table') || '';
+let lastReadAnn = Number(localStorage.getItem('last_read_ann') || 0);
+let lastReadChat = Number(localStorage.getItem('last_read_chat') || 0);
 
 function initTheme() {
     const theme = localStorage.getItem('theme') || 'light';
@@ -74,6 +76,18 @@ document.getElementById('logout-btn').addEventListener('click', async () => {
 function switchTab(tabName) {
     document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
     document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+
+    if (tabName === 'announcement') {
+        lastReadAnn = Date.now();
+        localStorage.setItem('last_read_ann', lastReadAnn);
+        document.getElementById('badge-ann').classList.add('hidden');
+    }
+    if (tabName === 'chat') {
+        lastReadChat = Date.now();
+        localStorage.setItem('last_read_chat', lastReadChat);
+        document.getElementById('badge-chat').classList.add('hidden');
+        loadMessages();
+    }
 }
 
 function changeMyTable() {
@@ -103,6 +117,14 @@ async function loadMessages() {
         </div>
     `).join('');
     container.scrollTop = container.scrollHeight;
+
+    // ตรวจสอบข้อความใหม่เพื่อแสดงจุดแดง
+    if (data.length > 0) {
+        const latestMsg = data[data.length - 1];
+        if (latestMsg.sender_id !== currentUser.id && new Date(latestMsg.created_at).getTime() > lastReadChat && document.getElementById('tab-chat').classList.contains('hidden')) {
+            document.getElementById('badge-chat').classList.remove('hidden');
+        }
+    }
 }
 
 async function sendMessage() {
@@ -170,14 +192,24 @@ async function loadAnnouncements() {
             <p class="text-sm text-slate-600 dark:text-slate-400 mt-1">${ann.content}</p>
         </div>
     `).join('');
+
+    if (data.length > 0) {
+        if (new Date(data[0].created_at).getTime() > lastReadAnn && document.getElementById('tab-announcement').classList.contains('hidden')) {
+            document.getElementById('badge-ann').classList.remove('hidden');
+        }
+    }
 }
 
 function setupRealtime() {
     sb.channel('student-realtime')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
-            if (payload.new.table_no === myTable) loadMessages();
+            if (payload.new.table_no === myTable) {
+                loadMessages();
+            }
         })
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'announcements' }, () => loadAnnouncements())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, () => {
+            loadAnnouncements();
+        })
         .subscribe();
 }
 
