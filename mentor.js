@@ -168,7 +168,6 @@ async function loadMentorMessages() {
     container.scrollTop = container.scrollHeight;
 }
 
-// ป้องกัน Error 400 ฝั่งพี่เลี้ยง
 async function sendMentorMessage() {
     if (!activeTable) {
         alert('กรุณาเลือกโต๊ะทางซ้ายมือก่อนตอบกลับ');
@@ -193,6 +192,24 @@ async function sendMentorMessage() {
     }
 }
 
+// ฟังก์ชันลบแชทประจำโต๊ะ (ให้เฉพาะ Mentor กดได้)
+async function clearMentorChat() {
+    if (!activeTable) {
+        alert('กรุณาเลือกโต๊ะทางซ้ายมือก่อนครับ');
+        return;
+    }
+    if (!confirm(`คุณต้องการลบประวัติแชททั้งหมดของ "${activeTable}" ใช่หรือไม่?`)) return;
+
+    const { error } = await sb.from('messages').delete().eq('table_no', activeTable);
+
+    if (!error) {
+        loadMentorMessages();
+        loadTableList();
+    } else {
+        alert('ล้างแชทไม่สำเร็จ: ' + error.message);
+    }
+}
+
 async function postAnnouncement() {
     const title = document.getElementById('ann-title').value.trim();
     const content = document.getElementById('ann-content').value.trim();
@@ -211,33 +228,25 @@ async function postAnnouncement() {
 }
 
 function setupRealtime() {
-    sb.channel('public:mentor-channel')
-        .on('postgres_changes', { 
-            event: '*', 
-            schema: 'public', 
-            table: 'sos_requests' 
-        }, () => {
-            loadSOS();
+    sb.channel('mentor-realtime')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'sos_requests' }, () => loadSOS())
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => {
+            loadTableList();
+            if (activeTable) loadMentorMessages();
         })
-        .on('postgres_changes', { 
-            event: 'INSERT', 
-            schema: 'public', 
-            table: 'messages' 
-        }, payload => {
-            loadTableList(); // อัปเดตรายชื่อโต๊ะทางซ้ายมือทันที
-            if (activeTable && payload.new.table_no === activeTable) {
-                loadMentorMessages(); // ถ้ากำลังเปิดดูโต๊ะนั้นอยู่ ให้ข้อความเด้งขึ้นมาทันที
-            }
+        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, () => {
+            loadTableList();
+            if (activeTable) loadMentorMessages();
         })
         .subscribe();
 }
 
-// ผูกฟังก์ชันเข้ากับ window
 window.toggleTheme = toggleTheme;
 window.switchTab = switchTab;
 window.updateSOSStatus = updateSOSStatus;
 window.selectChatTable = selectChatTable;
 window.sendMentorMessage = sendMentorMessage;
+window.clearMentorChat = clearMentorChat;
 window.postAnnouncement = postAnnouncement;
 
 checkUser();
