@@ -36,7 +36,7 @@ window.addEventListener('DOMContentLoaded', () => {
             const { data, error } = await sb.auth.signInWithOAuth({
                 provider: 'google',
                 options: { 
-                    redirectTo: 'https://apkrub.github.io/ST69-Chatting-with-TA/index.html' // <-- จุดที่แก้ไข: ระบุลิงก์ตรงๆ ป้องกัน 404
+                    redirectTo: 'https://apkrub.github.io/ST69-Chatting-with-TA/' // <-- จุดที่แก้ไข: ระบุลิงก์ตรงๆ ป้องกัน 404
                 }
             });
             if (error) {
