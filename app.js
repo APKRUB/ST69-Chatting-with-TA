@@ -27,7 +27,7 @@ async function checkUser() {
     }
 }
 
-// 2. ผูก Event ให้ปุ่ม Login เมื่อหน้าเว็บโหลดเสร็จ
+// 2. ผูก Event ให้ปุ่ม Login (ระบุ redirectTo ไปที่ https://apkrub.github.io/ โดยตรง)
 window.addEventListener('DOMContentLoaded', () => {
     const loginBtn = document.getElementById('login-btn');
     if (loginBtn) {
@@ -35,7 +35,9 @@ window.addEventListener('DOMContentLoaded', () => {
             console.log("กำลังพยายามเชื่อมต่อ Google OAuth...");
             const { data, error } = await sb.auth.signInWithOAuth({
                 provider: 'google',
-                options: { redirectTo: window.location.origin }
+                options: { 
+                    redirectTo: 'https://apkrub.github.io/ST69-Chatting-with-TA/index.html' // <-- จุดที่แก้ไข: ระบุลิงก์ตรงๆ ป้องกัน 404
+                }
             });
             if (error) {
                 alert('Login Error: ' + error.message);
@@ -114,7 +116,7 @@ async function sendSOS() {
     if (!error) {
         alert('🚨 ส่งสัญญาณเรียกพี่สำเร็จ พี่ๆ กำลังไปหาครับ!');
         document.getElementById('sos-topic').value = '';
-        switchTab('chat'); // ส่งเสร็จเด้งไปหน้าแชทรอ
+        switchTab('chat');
     } else {
         alert('ส่ง SOS ไม่สำเร็จ: ' + error.message);
     }
