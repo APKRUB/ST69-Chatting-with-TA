@@ -168,6 +168,7 @@ async function loadMentorMessages() {
     container.scrollTop = container.scrollHeight;
 }
 
+// ป้องกัน Error 400 ฝั่งพี่เลี้ยง
 async function sendMentorMessage() {
     if (!activeTable) {
         alert('กรุณาเลือกโต๊ะทางซ้ายมือก่อนตอบกลับ');
@@ -177,16 +178,18 @@ async function sendMentorMessage() {
     const content = input.value.trim();
     if (!content) return;
 
-    const { error } = await sb.from('messages').insert([{
+    const { error } = await sb.from('messages').insert({
         sender_id: currentUser.id,
         sender_email: currentUser.email,
         table_no: activeTable,
         content: content
-    }]);
+    });
 
     if (!error) {
         input.value = '';
         loadMentorMessages();
+    } else {
+        alert('ตอบกลับไม่สำเร็จ: ' + error.message);
     }
 }
 
@@ -198,7 +201,7 @@ async function postAnnouncement() {
         return;
     }
 
-    const { error } = await sb.from('announcements').insert([{ title, content }]);
+    const { error } = await sb.from('announcements').insert({ title, content });
     if (!error) {
         alert('📢 สร้างประกาศสำเร็จ!');
         document.getElementById('ann-title').value = '';
@@ -217,7 +220,7 @@ function setupRealtime() {
         .subscribe();
 }
 
-// ผูกฟังก์ชันเข้ากับ window เพื่อป้องกัน Error "is not defined"
+// ผูกฟังก์ชันเข้ากับ window
 window.toggleTheme = toggleTheme;
 window.switchTab = switchTab;
 window.updateSOSStatus = updateSOSStatus;
