@@ -5,7 +5,31 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let currentUser = null;
 let activeTable = null;
 
+function initTheme() {
+    const theme = localStorage.getItem('theme') || 'light';
+    if (theme === 'dark') {
+        document.documentElement.classList.add('dark');
+        document.getElementById('theme-label').innerText = 'โหมดสว่าง';
+    } else {
+        document.documentElement.classList.remove('dark');
+        document.getElementById('theme-label').innerText = 'โหมดมืด';
+    }
+}
+
+function toggleTheme() {
+    if (document.documentElement.classList.contains('dark')) {
+        document.documentElement.classList.remove('dark');
+        localStorage.setItem('theme', 'light');
+        document.getElementById('theme-label').innerText = 'โหมดมืด';
+    } else {
+        document.documentElement.classList.add('dark');
+        localStorage.setItem('theme', 'dark');
+        document.getElementById('theme-label').innerText = 'โหมดสว่าง';
+    }
+}
+
 async function checkUser() {
+    initTheme();
     const { data: { session } } = await sb.auth.getSession();
     if (session) {
         currentUser = session.user;
@@ -17,8 +41,8 @@ async function checkUser() {
         loadTableList();
         setupRealtime();
     } else {
-        document.getElementById('auth-container').classList.remove('hidden');
-        document.getElementById('app-container').classList.add('hidden');
+        document.getElementById('auth-container').classList.add('hidden');
+        document.getElementById('app-container').classList.remove('hidden');
     }
 }
 
@@ -58,24 +82,24 @@ async function loadSOS() {
     }
 
     container.innerHTML = data.map(sos => `
-        <div class="p-4 bg-white rounded-xl shadow-sm border border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div class="p-4 bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
                 <div class="flex items-center gap-2">
-                    <span class="bg-indigo-100 text-indigo-700 font-bold px-3 py-1 rounded-lg text-sm">${sos.table_no}</span>
+                    <span class="bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 font-bold px-3 py-1 rounded-lg text-sm">${sos.table_no}</span>
                     <span class="text-xs text-slate-400">ผู้ส่ง: ${sos.student_email || 'ไม่ระบุ'}</span>
                 </div>
-                <p class="text-slate-800 font-medium mt-2">📌 ปัญหา: ${sos.topic}</p>
+                <p class="text-slate-800 dark:text-slate-200 font-medium mt-2">📌 ปัญหา: ${sos.topic}</p>
             </div>
             <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
                 <span class="px-3 py-1 text-xs rounded-full font-medium ${
-                    sos.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
-                    sos.status === 'in_progress' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
+                    sos.status === 'pending' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300' :
+                    sos.status === 'in_progress' ? 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300' : 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300'
                 }">
                     ${sos.status === 'pending' ? '⏳ รอรับเคส' : sos.status === 'in_progress' ? '🏃‍♂️ กำลังไป' : '✅ เคลียร์แล้ว'}
                 </span>
                 
                 ${sos.status !== 'resolved' ? `
-                    <button onclick="updateSOSStatus('${sos.id}', '${sos.status === 'pending' ? 'in_progress' : 'resolved'}')" class="bg-slate-900 text-white text-xs px-3 py-2 rounded-lg hover:bg-slate-800 transition">
+                    <button onclick="updateSOSStatus('${sos.id}', '${sos.status === 'pending' ? 'in_progress' : 'resolved'}')" class="bg-slate-900 dark:bg-slate-800 text-white text-xs px-3 py-2 rounded-lg hover:bg-slate-800 transition">
                         ${sos.status === 'pending' ? 'รับเคสนี้' : 'เคลียร์แล้ว'}
                     </button>
                 ` : ''}
@@ -105,7 +129,7 @@ async function loadTableList() {
     }
 
     container.innerHTML = tables.map(table => `
-        <button onclick="selectChatTable('${table}')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-indigo-50 font-medium text-sm transition ${activeTable === table ? 'bg-indigo-50 text-indigo-600' : 'text-slate-700'}">
+        <button onclick="selectChatTable('${table}')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-indigo-50 dark:hover:bg-slate-800 font-medium text-sm transition ${activeTable === table ? 'bg-indigo-50 dark:bg-slate-800 text-indigo-600 dark:text-indigo-400' : 'text-slate-700 dark:text-slate-300'}">
             📌 ${table}
         </button>
     `).join('');
@@ -129,9 +153,9 @@ async function loadMentorMessages() {
 
     const container = document.getElementById('mentor-chat-messages');
     container.innerHTML = data.map(msg => `
-        <div class="p-3 bg-white rounded-xl shadow-sm max-w-md border border-slate-100 ${msg.sender_email === currentUser.email ? 'ml-auto bg-indigo-50/50' : ''}">
+        <div class="p-3 bg-white dark:bg-slate-900 rounded-xl shadow-sm max-w-md border border-slate-100 dark:border-slate-800 ${msg.sender_email === currentUser.email ? 'ml-auto bg-indigo-50/50 dark:bg-indigo-950/40' : ''}">
             <p class="text-xs text-slate-400 mb-1">${msg.sender_email}</p>
-            <p class="text-sm text-slate-700">${msg.content}</p>
+            <p class="text-sm text-slate-700 dark:text-slate-200">${msg.content}</p>
         </div>
     `).join('');
     container.scrollTop = container.scrollHeight;
