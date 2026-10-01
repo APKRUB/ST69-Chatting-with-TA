@@ -9,10 +9,12 @@ function initTheme() {
     const theme = localStorage.getItem('theme') || 'light';
     if (theme === 'dark') {
         document.documentElement.classList.add('dark');
-        document.getElementById('theme-label').innerText = 'โหมดสว่าง';
+        const label = document.getElementById('theme-label');
+        if(label) label.innerText = 'โหมดสว่าง';
     } else {
         document.documentElement.classList.remove('dark');
-        document.getElementById('theme-label').innerText = 'โหมดมืด';
+        const label = document.getElementById('theme-label');
+        if(label) label.innerText = 'โหมดมืด';
     }
 }
 
@@ -20,11 +22,13 @@ function toggleTheme() {
     if (document.documentElement.classList.contains('dark')) {
         document.documentElement.classList.remove('dark');
         localStorage.setItem('theme', 'light');
-        document.getElementById('theme-label').innerText = 'โหมดมืด';
+        const label = document.getElementById('theme-label');
+        if(label) label.innerText = 'โหมดมืด';
     } else {
         document.documentElement.classList.add('dark');
         localStorage.setItem('theme', 'dark');
-        document.getElementById('theme-label').innerText = 'โหมดสว่าง';
+        const label = document.getElementById('theme-label');
+        if(label) label.innerText = 'โหมดสว่าง';
     }
 }
 
@@ -137,7 +141,8 @@ async function loadTableList() {
 
 function selectChatTable(table) {
     activeTable = table;
-    document.getElementById('active-chat-title').innerText = `กำลังคุยกับ: ${table}`;
+    const titleEl = document.getElementById('active-chat-title');
+    if(titleEl) titleEl.innerText = `กำลังคุยกับ: ${table}`;
     loadMentorMessages();
     loadTableList();
 }
@@ -152,6 +157,8 @@ async function loadMentorMessages() {
     if (error) return;
 
     const container = document.getElementById('mentor-chat-messages');
+    if(!container) return;
+
     container.innerHTML = data.map(msg => `
         <div class="p-3 bg-white dark:bg-slate-900 rounded-xl shadow-sm max-w-md border border-slate-100 dark:border-slate-800 ${msg.sender_email === currentUser.email ? 'ml-auto bg-indigo-50/50 dark:bg-indigo-950/40' : ''}">
             <p class="text-xs text-slate-400 mb-1">${msg.sender_email}</p>
@@ -209,5 +216,13 @@ function setupRealtime() {
         })
         .subscribe();
 }
+
+// ผูกฟังก์ชันเข้ากับ window เพื่อป้องกัน Error "is not defined"
+window.toggleTheme = toggleTheme;
+window.switchTab = switchTab;
+window.updateSOSStatus = updateSOSStatus;
+window.selectChatTable = selectChatTable;
+window.sendMentorMessage = sendMentorMessage;
+window.postAnnouncement = postAnnouncement;
 
 checkUser();
