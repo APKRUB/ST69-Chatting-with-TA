@@ -149,16 +149,25 @@ async function deleteSOS(id) {
     }
 }
 
+// ดึงรายชื่อโต๊ะทั้งหมดจากทั้ง messages และ sos_requests มารวมกัน
 async function loadTableList() {
-    const { data, error } = await sb.from('messages').select('table_no').not('table_no', 'is', null);
-    if (error) return;
+    const { data: msgData, error: msgError } = await sb.from('messages').select('table_no').not('table_no', 'is', null);
+    if (msgError) return;
 
-    const tables = [...new Set(data.map(item => item.table_no))];
+    const { data: sosData, error: sosError } = await sb.from('sos_requests').select('table_no').not('table_no', 'is', null);
+    if (sosError) return;
+
+    const allTables = [
+        ...(msgData || []).map(item => item.table_no),
+        ...(sosData || []).map(item => item.table_no)
+    ];
+    const tables = [...new Set(allTables)].filter(Boolean);
+
     const container = document.getElementById('table-list');
     if (!container) return;
     
     if (tables.length === 0) {
-        container.innerHTML = `<p class="text-xs text-slate-400">ยังไม่มีโต๊ะทักแชทมา</p>`;
+        container.innerHTML = `<p class="text-xs text-slate-400">ยังไม่มีโต๊ะในระบบ</p>`;
         return;
     }
 
@@ -189,6 +198,11 @@ async function loadMentorMessages() {
     const container = document.getElementById('mentor-chat-messages');
     if(!container) return;
 
+    if (!data || data.length === 0) {
+        container.innerHTML = `<p class="text-xs text-slate-400 text-center mt-10">ยังไม่มีข้อความสนทนากับ ${activeTable} (สามารถพิมพ์ทักหรือล้างแชทได้)</p>`;
+        return;
+    }
+
     container.innerHTML = data.map(msg => `
         <div class="p-3 bg-white dark:bg-slate-900 rounded-xl shadow-sm max-w-md border border-slate-100 dark:border-slate-800 ${msg.sender_email === currentUser?.email ? 'ml-auto bg-indigo-50/50 dark:bg-indigo-950/40' : ''}">
             <p class="text-xs text-slate-400 mb-1">${msg.sender_email}</p>
@@ -217,6 +231,7 @@ async function sendMentorMessage() {
     if (!error) {
         input.value = '';
         loadMentorMessages();
+        loadTableList();
     } else {
         alert('ตอบกลับไม่สำเร็จ: ' + error.message);
     }
@@ -258,7 +273,7 @@ async function loadMentorAnnouncements() {
                 <p class="text-sm text-slate-600 dark:text-slate-400 mt-1">${ann.content}</p>
             </div>
             <div class="flex gap-1 shrink-0">
-                <button onclick="editAnnouncement('${ann.id}', \`${ann.title.replace(/`/g, '\\`')}\`, \`${ann.content.replace(/`/g, '\\`')}\`)" class="text-xs bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 px-2.5 py-1.5 rounded-lg hover:bg-blue-100 transition">✏️️ แก้ไข</button>
+                <button onclick="editAnnouncement('${ann.id}', \`${ann.title.replace(/`/g, '\\`')}\`, \`${ann.content.replace(/`/g, '\\`')}\`)" class="text-xs bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 px-2.5 py-1.5 rounded-lg hover:bg-blue-100 transition">✏ แก้ไข</button>
                 <button onclick="deleteAnnouncement('${ann.id}')" class="text-xs bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400 px-2.5 py-1.5 rounded-lg hover:bg-red-100 transition">🗑 ลบ</button>
             </div>
         </div>
@@ -328,7 +343,10 @@ async function deleteAnnouncement(id) {
 
 function setupRealtime() {
     sb.channel('mentor-realtime')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'sos_requests' }, () => loadSOS())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'sos_requests' }, () => {
+            loadSOS();
+            loadTableList();
+        })
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
             loadTableList();
             if (activeTable && payload.new.table_no === activeTable) {
