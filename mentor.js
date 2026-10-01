@@ -211,11 +211,23 @@ async function postAnnouncement() {
 }
 
 function setupRealtime() {
-    sb.channel('mentor-realtime')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'sos_requests' }, () => loadSOS())
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => {
-            loadTableList();
-            if (activeTable) loadMentorMessages();
+    sb.channel('public:mentor-channel')
+        .on('postgres_changes', { 
+            event: '*', 
+            schema: 'public', 
+            table: 'sos_requests' 
+        }, () => {
+            loadSOS();
+        })
+        .on('postgres_changes', { 
+            event: 'INSERT', 
+            schema: 'public', 
+            table: 'messages' 
+        }, payload => {
+            loadTableList(); // อัปเดตรายชื่อโต๊ะทางซ้ายมือทันที
+            if (activeTable && payload.new.table_no === activeTable) {
+                loadMentorMessages(); // ถ้ากำลังเปิดดูโต๊ะนั้นอยู่ ให้ข้อความเด้งขึ้นมาทันที
+            }
         })
         .subscribe();
 }
