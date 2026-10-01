@@ -4,9 +4,13 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let currentUser = null;
-let myTable = localStorage.getItem('my_table') || '';
-let lastReadAnn = Number(localStorage.getItem('last_read_ann') || 0);
-let lastReadChat = Number(localStorage.getItem('last_read_chat') || 0);
+let userProfile = {
+    fullname: localStorage.getItem('profile_fullname') || '',
+    nickname: localStorage.getItem('profile_nickname') || '',
+    grade: localStorage.getItem('profile_grade') || '',
+    dob: localStorage.getItem('profile_dob') || '',
+    no: localStorage.getItem('profile_no') || 'ไม่ระบุเลขที่'
+};
 
 function initTheme() {
     const theme = localStorage.getItem('theme') || 'light';
@@ -44,11 +48,14 @@ async function checkUser() {
         document.getElementById('app-container').classList.remove('hidden');
         document.getElementById('user-info').innerText = `👤 ${currentUser.email}`;
         
-        if (myTable) {
-            document.getElementById('my-table-no').value = myTable;
+        // บังคับกรอก Setting ถ้ายังไม่เคยกรอก
+        if (!userProfile.nickname || !userProfile.no) {
+            openSettings();
         }
+
         loadMessages();
         loadAnnouncements();
+        loadStudentPolls();
         setupRealtime();
     } else {
         document.getElementById('auth-container').classList.remove('hidden');
@@ -62,7 +69,7 @@ window.addEventListener('DOMContentLoaded', () => {
         loginBtn.addEventListener('click', async () => {
             await sb.auth.signInWithOAuth({
                 provider: 'google',
-                options: { redirectTo: 'https://apkrub.github.io/ST69-Chatting-with-TA/' }
+                options: { redirectTo: window.location.href }
             });
         });
     }
@@ -76,70 +83,85 @@ document.getElementById('logout-btn').addEventListener('click', async () => {
 function switchTab(tabName) {
     document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
     document.getElementById(`tab-${tabName}`).classList.remove('hidden');
-
-    if (tabName === 'announcement') {
-        lastReadAnn = Date.now();
-        localStorage.setItem('last_read_ann', lastReadAnn);
-        document.getElementById('badge-ann').classList.add('hidden');
-    }
-    if (tabName === 'chat') {
-        lastReadChat = Date.now();
-        localStorage.setItem('last_read_chat', lastReadChat);
-        document.getElementById('badge-chat').classList.add('hidden');
-        loadMessages();
-    }
+    if (tabName === 'poll') loadStudentPolls();
+    if (tabName === 'chat') loadMessages();
 }
 
-function changeMyTable() {
-    myTable = document.getElementById('my-table-no').value.trim();
-    localStorage.setItem('my_table', myTable);
-    loadMessages();
+// Modal ตั้งค่า
+function openSettings() {
+    document.getElementById('set-fullname').value = userProfile.fullname;
+    document.getElementById('set-nickname').value = userProfile.nickname;
+    document.getElementById('set-grade').value = userProfile.grade;
+    document.getElementById('set-dob').value = userProfile.dob;
+    document.getElementById('set-no').value = userProfile.no;
+    document.getElementById('settings-modal').classList.remove('hidden');
 }
 
-async function loadMessages() {
-    if (!myTable) {
-        document.getElementById('chat-messages').innerHTML = `<p class="text-center text-slate-400 mt-10">กรุณาระบุเลขที่โต๊ะด้านบนก่อนเริ่มแชทครับ</p>`;
+function closeSettings() {
+    if (!userProfile.nickname || !userProfile.no) {
+        alert('กรุณากรอกชื่อเล่นและเลขที่ก่อนใช้งานครับ');
+        return;
+    }
+    document.getElementById('settings-modal').classList.add('hidden');
+}
+
+function saveSettings() {
+    userProfile.fullname = document.getElementById('set-fullname').value.trim();
+    userProfile.nickname = document.getElementById('set-nickname').value.trim();
+    userProfile.grade = document.getElementById('set-grade').value.trim();
+    userProfile.dob = document.getElementById('set-dob').value.trim();
+    userProfile.no = document.getElementById('set-no').value.trim();
+
+    if (!userProfile.nickname || !userProfile.no) {
+        alert('กรุณากรอกชื่อเล่นและเลขที่ด้วยครับ');
         return;
     }
 
+    localStorage.setItem('profile_fullname', userProfile.fullname);
+    localStorage.setItem('profile_nickname', userProfile.nickname);
+    localStorage.setItem('profile_grade', userProfile.grade);
+    localStorage.setItem('profile_dob', userProfile.dob);
+    localStorage.setItem('profile_no', userProfile.no);
+
+    document.getElementById('settings-modal').classList.add('hidden');
+    alert('✅ บันทึกข้อมูลเรียบร้อย!');
+}
+
+// ส่งข้อความแชท (ใช้รูปแบบ เลขที่-ชื่อเล่น กำกับเสมอ)
+async function loadMessages() {
     const { data, error } = await sb.from('messages')
         .select('*')
-        .eq('table_no', myTable)
         .order('created_at', { ascending: true });
         
     if (error) return;
     
     const container = document.getElementById('chat-messages');
-    container.innerHTML = data.map(msg => `
-        <div class="p-3 bg-white dark:bg-slate-900 rounded-xl shadow-sm max-w-md border border-slate-100 dark:border-slate-800 ${msg.sender_id === currentUser.id ? 'ml-auto bg-indigo-50/50 dark:bg-indigo-950/40' : ''}">
-            <p class="text-xs text-slate-400 mb-1">${msg.sender_id === currentUser.id ? 'คุณ' : 'พี่เลี้ยง'}</p>
-            <p class="text-sm text-slate-700 dark:text-slate-200">${msg.content}</p>
-        </div>
-    `).join('');
+    container.innerHTML = data.map(msg => {
+        // ดึงชื่อผู้ส่งจากตารางหรือใช้ sender_name ที่แนบไป
+        const senderDisplay = msg.sender_name || `${msg.table_no || 'ทั่วไป'}-${msg.sender_email}`;
+        const isMe = msg.sender_id === currentUser.id;
+        return `
+            <div class="p-3 bg-white dark:bg-slate-900 rounded-xl shadow-sm max-w-md border border-slate-100 dark:border-slate-800 ${isMe ? 'ml-auto bg-indigo-50/50 dark:bg-indigo-950/40' : ''}">
+                <p class="text-xs font-semibold text-indigo-600 dark:text-indigo-400 mb-1">📌 ${senderDisplay}</p>
+                <p class="text-sm text-slate-700 dark:text-slate-200">${msg.content}</p>
+            </div>
+        `;
+    }).join('');
     container.scrollTop = container.scrollHeight;
-
-    // ตรวจสอบข้อความใหม่เพื่อแสดงจุดแดง
-    if (data.length > 0) {
-        const latestMsg = data[data.length - 1];
-        if (latestMsg.sender_id !== currentUser.id && new Date(latestMsg.created_at).getTime() > lastReadChat && document.getElementById('tab-chat').classList.contains('hidden')) {
-            document.getElementById('badge-chat').classList.remove('hidden');
-        }
-    }
 }
 
 async function sendMessage() {
-    if (!myTable) {
-        alert('กรุณาระบุเลขที่โต๊ะก่อนส่งข้อความครับ');
-        return;
-    }
     const input = document.getElementById('chat-input');
     const content = input.value.trim();
     if (!content) return;
 
+    // บังคับใช้ชื่อรูปแบบ เลขที่-ชื่อเล่น เป็น sender_name ป้องกันการแอบอ้าง
+    const chatDisplayName = `${userProfile.no}-${userProfile.nickname}`;
+
     const { error } = await sb.from('messages').insert({
         sender_id: currentUser.id,
         sender_email: currentUser.email,
-        table_no: myTable,
+        sender_name: chatDisplayName,
         content: content
     });
 
@@ -162,7 +184,7 @@ async function sendSOS() {
     const { error } = await sb.from('sos_requests').insert({
         student_id: currentUser.id,
         student_email: currentUser.email,
-        table_no: tableNo,
+        table_no: `${userProfile.no}-${userProfile.nickname} (โต๊ะ ${tableNo})`,
         topic: topic,
         status: 'pending'
     });
@@ -174,49 +196,86 @@ async function sendSOS() {
     }
 }
 
-async function loadAnnouncements() {
-    const { data, error } = await sb.from('announcements').select('*').order('created_at', { ascending: false });
+// --- ระบบ Poll ฝั่งน้อง ---
+async function loadStudentPolls() {
+    const { data: polls, error } = await sb.from('polls').select('*').order('created_at', { ascending: false });
     if (error) return;
 
-    const container = document.getElementById('announcement-list');
+    const { data: myVotes } = await sb.from('poll_votes').select('*').eq('user_id', currentUser.id);
+    const votedMap = {};
+    (myVotes || []).forEach(v => { votedMap[v.poll_id] = v.selected_option; });
+
+    const container = document.getElementById('student-poll-list');
     if (!container) return;
 
-    if (data.length === 0) {
-        container.innerHTML = `<p class="text-sm text-slate-400">ยังไม่มีประกาศจากค่าย</p>`;
+    if (!polls || polls.length === 0) {
+        container.innerHTML = `<p class="text-sm text-slate-400">ยังไม่มีแบบสำรวจในขณะนี้</p>`;
         return;
     }
 
+    const now = new Date();
+
+    container.innerHTML = polls.map(poll => {
+        const isExpired = poll.expires_at && new Date(poll.expires_at) < now;
+        const hasVoted = votedMap[poll.id] !== undefined;
+
+        return `
+            <div class="p-5 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 space-y-3">
+                <h3 class="font-bold text-base">${poll.question}</h3>
+                ${isExpired ? `<p class="text-xs text-red-500 font-medium">⏳ แบบสำรวจนี้ปิดรับคำตอบแล้ว</p>` : ''}
+                <div class="space-y-2">
+                    ${poll.options.map((opt, idx) => `
+                        <button onclick="votePoll('${poll.id}',${idx})" 
+                            class="w-full text-left px-4 py-2.5 rounded-xl text-sm border transition flex justify-between items-center ${votedMap[poll.id] === idx ? 'bg-indigo-50 border-indigo-500 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 font-bold' : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'}"
+                            ${isExpired ? 'disabled' : ''}>
+                            <span>${opt}</span>${votedMap[poll.id] === idx ? '<span>✓ โหวตแล้ว</span>' : ''}
+                        </button>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+async function votePoll(pollId, optionIndex) {
+    // เช็กว่าโหวตซ้ำไหมหรืออัปเดตโหวตเดิม
+    const { data: existing } = await sb.from('poll_votes').select('*').eq('poll_id', pollId).eq('user_id', currentUser.id).single();
+
+    if (existing) {
+        await sb.from('poll_votes').update({ selected_option: optionIndex }).eq('id', existing.id);
+    } else {
+        await sb.from('poll_votes').insert({ poll_id: pollId, user_id: currentUser.id, selected_option: optionIndex });
+    }
+    alert('✅ บันทึกคะแนนโหวตเรียบร้อย!');
+    loadStudentPolls();
+}
+
+async function loadAnnouncements() {
+    const { data } = await sb.from('announcements').select('*').order('created_at', { ascending: false });
+    const container = document.getElementById('announcement-list');
+    if (!container || !data) return;
     container.innerHTML = data.map(ann => `
         <div class="p-4 bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 border-l-4 border-indigo-600">
             <h3 class="font-bold text-slate-800 dark:text-slate-100">${ann.title}</h3>
             <p class="text-sm text-slate-600 dark:text-slate-400 mt-1">${ann.content}</p>
         </div>
     `).join('');
-
-    if (data.length > 0) {
-        if (new Date(data[0].created_at).getTime() > lastReadAnn && document.getElementById('tab-announcement').classList.contains('hidden')) {
-            document.getElementById('badge-ann').classList.remove('hidden');
-        }
-    }
 }
 
 function setupRealtime() {
-    sb.channel('student-realtime')
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
-            if (payload.new.table_no === myTable) {
-                loadMessages();
-            }
-        })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, () => {
-            loadAnnouncements();
-        })
+    sb.channel('student-rt')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => loadMessages())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'polls' }, () => loadStudentPolls())
         .subscribe();
 }
 
 window.toggleTheme = toggleTheme;
 window.switchTab = switchTab;
-window.changeMyTable = changeMyTable;
+window.openSettings = openSettings;
+window.closeSettings = closeSettings;
+window.saveSettings = saveSettings;
 window.sendMessage = sendMessage;
 window.sendSOS = sendSOS;
+window.votePoll = votePoll;
 
 checkUser();
