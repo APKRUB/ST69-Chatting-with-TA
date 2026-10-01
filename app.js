@@ -9,7 +9,7 @@ let userProfile = {
     nickname: localStorage.getItem('profile_nickname') || '',
     grade: localStorage.getItem('profile_grade') || '',
     dob: localStorage.getItem('profile_dob') || '',
-    no: localStorage.getItem('profile_no') || 'ไม่ระบุเลขที่'
+    no: localStorage.getItem('profile_no') || ''
 };
 
 function initTheme() {
@@ -48,7 +48,6 @@ async function checkUser() {
         document.getElementById('app-container').classList.remove('hidden');
         document.getElementById('user-info').innerText = `👤 ${currentUser.email}`;
         
-        // บังคับกรอก Setting ถ้ายังไม่เคยกรอก
         if (!userProfile.nickname || !userProfile.no) {
             openSettings();
         }
@@ -87,7 +86,6 @@ function switchTab(tabName) {
     if (tabName === 'chat') loadMessages();
 }
 
-// Modal ตั้งค่า
 function openSettings() {
     document.getElementById('set-fullname').value = userProfile.fullname;
     document.getElementById('set-nickname').value = userProfile.nickname;
@@ -127,17 +125,12 @@ function saveSettings() {
     alert('✅ บันทึกข้อมูลเรียบร้อย!');
 }
 
-// ส่งข้อความแชท (ใช้รูปแบบ เลขที่-ชื่อเล่น กำกับเสมอ)
 async function loadMessages() {
-    const { data, error } = await sb.from('messages')
-        .select('*')
-        .order('created_at', { ascending: true });
-        
+    const { data, error } = await sb.from('messages').select('*').order('created_at', { ascending: true });
     if (error) return;
     
     const container = document.getElementById('chat-messages');
-    container.innerHTML = data.map(msg => {
-        // ดึงชื่อผู้ส่งจากตารางหรือใช้ sender_name ที่แนบไป
+    container.innerHTML = (data || []).map(msg => {
         const senderDisplay = msg.sender_name || `${msg.table_no || 'ทั่วไป'}-${msg.sender_email}`;
         const isMe = msg.sender_id === currentUser.id;
         return `
@@ -155,7 +148,6 @@ async function sendMessage() {
     const content = input.value.trim();
     if (!content) return;
 
-    // บังคับใช้ชื่อรูปแบบ เลขที่-ชื่อเล่น เป็น sender_name ป้องกันการแอบอ้าง
     const chatDisplayName = `${userProfile.no}-${userProfile.nickname}`;
 
     const { error } = await sb.from('messages').insert({
@@ -196,11 +188,8 @@ async function sendSOS() {
     }
 }
 
-// --- ระบบ Poll ฝั่งน้อง ---
 async function loadStudentPolls() {
-    const { data: polls, error } = await sb.from('polls').select('*').order('created_at', { ascending: false });
-    if (error) return;
-
+    const { data: polls } = await sb.from('polls').select('*').order('created_at', { ascending: false });
     const { data: myVotes } = await sb.from('poll_votes').select('*').eq('user_id', currentUser.id);
     const votedMap = {};
     (myVotes || []).forEach(v => { votedMap[v.poll_id] = v.selected_option; });
@@ -217,7 +206,7 @@ async function loadStudentPolls() {
 
     container.innerHTML = polls.map(poll => {
         const isExpired = poll.expires_at && new Date(poll.expires_at) < now;
-        const hasVoted = votedMap[poll.id] !== undefined;
+        const votedIdx = votedMap[poll.id];
 
         return `
             <div class="p-5 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 space-y-3">
@@ -226,9 +215,9 @@ async function loadStudentPolls() {
                 <div class="space-y-2">
                     ${poll.options.map((opt, idx) => `
                         <button onclick="votePoll('${poll.id}',${idx})" 
-                            class="w-full text-left px-4 py-2.5 rounded-xl text-sm border transition flex justify-between items-center ${votedMap[poll.id] === idx ? 'bg-indigo-50 border-indigo-500 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 font-bold' : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'}"
+                            class="w-full text-left px-4 py-2.5 rounded-xl text-sm border transition flex justify-between items-center ${votedIdx === idx ? 'bg-indigo-50 border-indigo-500 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 font-bold' : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800'}"
                             ${isExpired ? 'disabled' : ''}>
-                            <span>${opt}</span>${votedMap[poll.id] === idx ? '<span>✓ โหวตแล้ว</span>' : ''}
+                            <span>${opt}</span>${votedIdx === idx ? '<span>✓ โหวตแล้ว</span>' : ''}
                         </button>
                     `).join('')}
                 </div>
@@ -238,7 +227,6 @@ async function loadStudentPolls() {
 }
 
 async function votePoll(pollId, optionIndex) {
-    // เช็กว่าโหวตซ้ำไหมหรืออัปเดตโหวตเดิม
     const { data: existing } = await sb.from('poll_votes').select('*').eq('poll_id', pollId).eq('user_id', currentUser.id).single();
 
     if (existing) {
